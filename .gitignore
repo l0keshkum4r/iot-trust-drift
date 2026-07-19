@@ -10,6 +10,7 @@ __pycache__/
 .vscode/
 .idea/
 *.swp
+.claude
 
 # OS
 Thumbs.db

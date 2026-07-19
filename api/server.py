@@ -29,6 +29,8 @@ async def lifespan(app):
     print("[Startup] WebSocket broadcast loop started")
     print("[Startup] Server ready! Listening on http://0.0.0.0:8002")
     yield
+    print("[Shutdown] Stopping network monitor background task...")
+    _network_monitor.stop()
 
 app = FastAPI(title="IoT Trust & Drift API", lifespan=lifespan)
 
@@ -142,12 +144,15 @@ print("[Startup] Initialization complete")
 # ── Live Engine + Real Traffic Capture ────────────────
 from simulators.live_engine import LiveEngine
 from simulators.live_capture import LiveNetworkCapture
+from api.network_monitor import NetworkIoTMonitor
 
 _live_engine = LiveEngine()
 _live_capture = LiveNetworkCapture()
+_network_monitor = NetworkIoTMonitor(live_engine=_live_engine)
 
 # Auto-start real traffic capture so data is available immediately
 _live_capture.start()
+_network_monitor.start()
 
 # WebSocket connected clients
 _ws_clients: set = set()
@@ -1347,6 +1352,70 @@ def phone_history(device_id: str = None, last_n: int = 100):
     if device_id:
         data = [d for d in data if d["device_id"] == device_id]
     return data[-last_n:]
+
+
+# ── REAL NETWORK IoT DEVICE MONITORING ENDPOINTS ──────────────────
+
+class MonitoredDeviceAdd(BaseModel):
+    ip: str
+    custom_name: str
+    device_type: str
+    mac: str = ""
+
+class MonitoredDeviceDelete(BaseModel):
+    ip: str
+
+@app.get("/api/network/discover")
+def network_discover(subnet: str = None):
+    """Triggers an active subnet scan and returns discovered hosts."""
+    return _network_monitor.discover_subnet(subnet_prefix=subnet)
+
+@app.get("/api/network/monitored")
+def network_monitored():
+    """Returns list of registered monitored devices with their latest status & trust scores."""
+    return _network_monitor.get_monitored_devices()
+
+@app.post("/api/network/monitored/add")
+def network_monitored_add(payload: MonitoredDeviceAdd):
+    """Register a new device for background monitoring."""
+    success = _network_monitor.add_device(
+        ip=payload.ip,
+        custom_name=payload.custom_name,
+        device_type=payload.device_type,
+        mac=payload.mac
+    )
+    return {"status": "ok" if success else "error"}
+
+@app.post("/api/network/monitored/delete")
+def network_monitored_delete(payload: MonitoredDeviceDelete):
+    """Unregister a device from monitoring."""
+    success = _network_monitor.delete_device(ip=payload.ip)
+    return {"status": "ok" if success else "error"}
+
+@app.get("/api/network/monitored/history")
+def network_monitored_history(ip: str, last_n: int = 100):
+    """Get historical scored telemetry for a monitored device."""
+    return _network_monitor.get_device_history(ip=ip, last_n=last_n)
+
+
+@app.get("/api/network/fleet-summary")
+def network_fleet_summary():
+    """
+    Aggregated fleet health metrics across all monitored network devices:
+    total, online/offline, avg trust score, in-drift count, critical count,
+    and policy violation count.
+    """
+    return _network_monitor.get_fleet_summary()
+
+
+@app.get("/api/network/drift-alerts")
+def network_drift_alerts(last_n: int = 50):
+    """
+    Recent drift and policy-violation events across all monitored devices,
+    sorted by time descending. Includes device name, severity, drift_class,
+    drift_magnitude, and top_drifters_parsed.
+    """
+    return _network_monitor.get_drift_alerts(last_n=last_n)
 
 
 if __name__ == "__main__":

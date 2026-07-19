@@ -10,6 +10,7 @@ import Devices from './pages/Devices';
 import DeviceDetail from './pages/DeviceDetail';
 import Live from './pages/Live';
 import PhoneAgents from './pages/PhoneAgents';
+import LocalNetworkMonitor from './pages/LocalNetworkMonitor';
 
 /* SVG Icons as components */
 const IconDashboard = () => (
@@ -64,6 +65,16 @@ const IconPhone = () => (
   </svg>
 );
 
+const IconRadar = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10" />
+    <circle cx="12" cy="12" r="6" />
+    <circle cx="12" cy="12" r="2" fill="currentColor" />
+    <line x1="12" y1="2" x2="12" y2="12" />
+  </svg>
+);
+
+
 const IconLogout = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" />
@@ -77,6 +88,7 @@ function Sidebar() {
     { to: '/', label: 'Dashboard', icon: <IconDashboard /> },
     { to: '/live', label: 'Live', icon: <IconLive /> },
     { to: '/phones', label: 'Phone Agents', icon: <IconPhone /> },
+    { to: '/network-monitor', label: 'Local Monitor', icon: <IconRadar /> },
     { to: '/devices', label: 'Devices', icon: <IconDevices /> },
     { to: '/analytics', label: 'Analytics', icon: <IconAnalytics /> },
     { to: '/network', label: 'Network', icon: <IconNetwork /> },
@@ -100,7 +112,7 @@ function Sidebar() {
 
       <nav className="sidebar-nav">
         <div className="sidebar-section-label">Monitor</div>
-        {links.slice(0, 5).map(link => (
+        {links.slice(0, 6).map(link => (
           <NavLink
             key={link.to}
             to={link.to}
@@ -113,7 +125,7 @@ function Sidebar() {
         ))}
 
         <div className="sidebar-section-label" style={{ marginTop: 8 }}>Respond</div>
-        {links.slice(5).map(link => (
+        {links.slice(6).map(link => (
           <NavLink
             key={link.to}
             to={link.to}
@@ -166,6 +178,7 @@ function App() {
           <Route path="/" element={<Dashboard />} />
                 <Route path="/live" element={<Live />} />
                 <Route path="/phones" element={<PhoneAgents />} />
+                <Route path="/network-monitor" element={<LocalNetworkMonitor />} />
           <Route path="/devices" element={<Devices />} />
           <Route path="/analytics" element={<Analytics />} />
           <Route path="/network" element={<Network />} />
