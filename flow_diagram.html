@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IoT Trust & Drift Analytics Platform — Flow Diagram</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f8f9fa;
+            color: #1a1a2e;
+            line-height: 1.5;
+            padding: 24px;
+        }
+        .container { max-width: 1400px; margin: 0 auto; }
+        h1 { font-size: 1.75rem; font-weight: 600; margin-bottom: 0.5rem; color: #1a1a2e; }
+        .subtitle { color: #6b7280; margin-bottom: 24px; font-size: 1rem; }
+
+        /* Diagram styles */
+        .diagram { background: white; border-radius: 8px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+        .stage { margin-bottom: 16px; }
+        .stage:last-child { margin-bottom: 0; }
+
+        .stage-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 12px;
+            background: #f0f4f8;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            border-left: 4px solid #3b82f6;
+        }
+        .stage-number {
+            width: 28px; height: 28px;
+            display: flex; align-items: center; justify-content: center;
+            background: #3b82f6; color: white;
+            border-radius: 50%; font-weight: 600; font-size: 0.875rem;
+        }
+        .stage-title { font-weight: 600; font-size: 1rem; }
+        .stage-file { font-size: 0.75rem; color: #6b7280; font-family: monospace; margin-left: auto; }
+
+        .flow-row {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .flow-box {
+            min-width: 180px;
+            max-width: 220px;
+            padding: 12px 14px;
+            background: #ffffff;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            position: relative;
+        }
+        .flow-box.input { border-color: #22c55e; background: #f0fdf4; }
+        .flow-box.process { border-color: #3b82f6; background: #eff6ff; }
+        .flow-box.output { border-color: #f59e0b; background: #fffbeb; }
+        .flow-box.decision { border-color: #8b5cf6; background: #f5f3ff; }
+
+        .box-label { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280; margin-bottom: 6px; }
+        .box-title { font-weight: 600; font-size: 0.875rem; color: #1a1a2e; margin-bottom: 4px; }
+        .box-detail { font-size: 0.7rem; color: #6b7280; line-height: 1.5; }
+
+        .arrow {
+            display: flex; align-items: center;
+            color: #9ca3af; font-size: 1.25rem;
+            flex-shrink: 0;
+        }
+        .arrow-down {
+            transform: rotate(90deg);
+            margin: 4px 0;
+        }
+
+        .detail-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 8px;
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid #e5e7eb;
+        }
+        .detail-item { font-size: 0.65rem; color: #4b5563; }
+        .detail-label { font-weight: 600; color: #374151; }
+
+        /* Table styles for outputs */
+        .output-table {
+            width: 100%;
+            font-size: 0.7rem;
+            border-collapse: collapse;
+            margin-top: 8px;
+        }
+        .output-table th, .output-table td {
+            padding: 4px 8px;
+            text-align: left;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .output-table th { font-weight: 600; color: #374151; }
+        .output-table td { color: #4b5563; }
+
+        /* Legend */
+        .legend {
+            display: flex; gap: 16px; flex-wrap: wrap;
+            padding: 12px; background: #f9fafb; border-radius: 6px;
+            margin-bottom: 24px; font-size: 0.75rem;
+        }
+        .legend-item { display: flex; align-items: center; gap: 6px; }
+        .legend-color { width: 12px; height: 12px; border-radius: 3px; }
+
+        /* Mermaid fallback */
+        .mermaid { background: white; padding: 24px; border-radius: 8px; }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .flow-row { flex-direction: column; }
+            .arrow { display: none; }
+            .arrow-down { display: flex; }
+            .flow-box { max-width: 100%; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>IoT Trust & Drift Analytics Platform</h1>
+        <p class="subtitle">End-to-End Data Flow Architecture</p>
+
+        <div class="legend">
+            <div class="legend-item"><span class="legend-color" style="background:#f0fdf4;border:1px solid #22c55e"></span> Data Input</div>
+            <div class="legend-item"><span class="legend-color" style="background:#eff6ff;border:1px solid #3b82f6"></span> Processing Stage</div>
+            <div class="legend-item"><span class="legend-color" style="background:#fffbeb;border:1px solid #f59e0b"></span> Output File</div>
+            <div class="legend-item"><span class="legend-color" style="background:#f5f3ff;border:1px solid #8b5cf6"></span> Decision/Branch</div>
+        </div>
+
+        <div class="diagram" id="diagram"></div>
+
+        <!-- Mermaid fallback for complex view -->
+        <details style="margin-top:24px">
+            <summary style="cursor:pointer; font-weight:600; color:#3b82f6">Show Full Mermaid Diagram (zoomable)</summary>
+            <div class="mermaid" id="mermaid-diagram"></div>
+        </details>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script>
+        // Initialize mermaid
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'default',
+            flowchart: {
+                useMaxWidth: true,
+                htmlLabels: true,
+                curve: 'basis'
+            }
+        });
+
+        // Build the visual diagram programmatically
+        const stages = [
+            {
+                number: 1,
+                title: "Data Sources",
+                file: "simulators/generate_dataset.py, api/server.py (live capture)",
+                type: "input",
+                boxes: [
+                    { label: "Input", title: "Synthetic Dataset Generator", detail: "Normal (48h) + Attack (2h) traffic for CCTV, Router, AccessController" },
+                    { label: "Input", title: "Live Network Capture", detail: "PCAP/sniffing via LiveNetworkCapture" },
+                    { label: "Input", title: "Phone Agents (Termux)", detail: "POST /api/phone/telemetry every 8s" },
+                    { label: "Input", title: "IoT Devices", detail: "POST /api/iot/telemetry" },
+                ],
+                output: { file: "data/full_dataset.csv", cols: ["device_id", "timestamp", "src_ip", "dst_ip", "protocol", "dst_port", "bytes_out", "packets_out", "duration", "direction", "label"] }
+            },
+            {
+                number: 2,
+                title: "Feature Engineering",
+                file: "collector/feature_extractor.py",
+                type: "process",
+                boxes: [
+                    { label: "Process", title: "Aggregate per Device/Hour", detail: "Group raw flows by device_id + 1-hour window" },
+                    { label: "Process", title: "Extract 9 Features", detail: "bytes_out, packets_out, avg_bytes/flow, num_flows, unique_dst_ips, unique_dst_ports, unique_protocols, external_ratio, avg_duration" },
+                ],
+                output: { file: "data/feature_vectors.csv", cols: ["device_id", "device_type", "window", "9 features"] }
+            },
+            {
+                number: 3,
+                title: "Baseline Learning & Model Training",
+                file: "ml_engine/anomaly_detector.py",
+                type: "process",
+                boxes: [
+                    { label: "Process", title: "Split Baseline (48h) / Full", detail: "First 48 hours = clean training data" },
+                    { label: "Process", title: "Compute Baseline Stats", detail: "Per-device mean/std for each feature (for drift detection)" },
+                    { label: "Process", title: "Train Per-Device-Type Models", detail: "3 Isolation Forests (CCTV/Router/AccessController) + separate StandardScaler each" },
+                ],
+                output: { file: "In-memory models + baseline_stats dict", cols: ["model per device_type", "scaler per device_type", "baseline[device][feature]={mean,std}"] }
+            },
+            {
+                number: 4,
+                title: "Anomaly Detection",
+                file: "ml_engine/anomaly_detector.py",
+                type: "process",
+                boxes: [
+                    { label: "Process", title: "Score All Windows", detail: "Route each window to its device-type model + scaler" },
+                    { label: "Process", title: "Normalize Scores", detail: "decision_function → anomaly_score (0-1, higher=more anomalous)" },
+                    { label: "Decision", title: "Threshold at contamination=0.05", detail: "is_anomaly = 1 if prediction=-1 else 0" },
+                ],
+                output: { file: "data/anomaly_scores.csv", cols: ["device_id", "device_type", "window", "raw_score", "anomaly_score", "is_anomaly"] }
+            },
+            {
+                number: 5,
+                title: "Drift Detection",
+                file: "ml_engine/drift_detector.py",
+                type: "process",
+                boxes: [
+                    { label: "Process", title: "Z-Score per Feature", detail: "|current - baseline_mean| / baseline_std (capped at 100)" },
+                    { label: "Process", title: "Aggregate Magnitude", detail: "Mean of all 9 feature z-scores" },
+                    { label: "Decision", title: "Classify Drift", detail: "NONE (<1.5), MILD (1.5-3), STRONG (≥3)" },
+                    { label: "Output", title: "Top Drifters", detail: "Top 3 features by z-score for explainability" },
+                ],
+                output: { file: "data/drift_results.csv", cols: ["device_id", "window", "drift_magnitude", "drift_class", "top_drifters", "penalty"] }
+            },
+            {
+                number: 6,
+                title: "Policy Evaluation",
+                file: "trust_engine/policy_engine.py",
+                type: "process",
+                boxes: [
+                    { label: "Process", title: "Load Device Profiles", detail: "config/device_profiles.py defines allowed protocols, ports, IPs, bandwidth per type" },
+                    { label: "Check", title: "5 Policy Checks", detail: "Protocol, Port, Destination IP, Bandwidth, Direction" },
+                    { label: "Decision", title: "Classify Violations", detail: "COMPLIANT (0), SOFT_DRIFT (1), HARD_VIOLATION (≥2)" },
+                ],
+                output: { file: "data/policy_results.csv", cols: ["device_id", "device_type", "window", "policy_status", "violations", "penalty"] }
+            },
+            {
+                number: 7,
+                title: "Trust Scoring Engine",
+                file: "trust_engine/trust_scorer.py",
+                type: "process",
+                boxes: [
+                    { label: "Process", title: "Merge All Signals", detail: "Join anomaly + drift + policy on [device_id, window]" },
+                    { label: "Formula", title: "Trust = 100 - deductions", detail: "Anomaly: -40×score | Drift: -20/-10/0 | Policy: -40/-15/0" },
+                    { label: "Process", title: "EMA Smoothing (α=0.3)", detail: "smoothed[t] = 0.3×raw[t] + 0.7×smoothed[t-1]" },
+                    { label: "Decision", title: "Severity Mapping", detail: "Low(81-100), Medium(61-80), High(31-60), Critical(0-30)" },
+                ],
+                output: { file: "data/trust_scores.csv", cols: ["device_id", "device_type", "window", "trust_score", "trust_score_smoothed", "severity", "severity_smoothed", "anomaly_deduction", "drift_deduction", "policy_deduction"] }
+            },
+            {
+                number: 8,
+                title: "Explainability Engine",
+                file: "explainability/evidence_generator.py",
+                type: "process",
+                boxes: [
+                    { label: "Output", title: "Risk Summary", detail: "One-line verdict + severity + immediate action" },
+                    { label: "Output", title: "Evidence Text", detail: "Human-readable findings (anomaly, drift, policy)" },
+                    { label: "Output", title: "Feature Attribution", detail: "Score breakdown by component" },
+                    { label: "Output", title: "Recommended Action", detail: "Isolate / Investigate / Monitor / No action per severity" },
+                ],
+                output: { file: "data/evidence_reports.csv", cols: ["device_id", "window", "trust_score_smoothed", "severity_smoothed", "risk_summary", "evidence", "feature_attribution", "recommended_action"] }
+            },
+            {
+                number: 9,
+                title: "API & Dashboard Serving",
+                file: "api/server.py + dashboard/",
+                type: "output",
+                boxes: [
+                    { label: "API", title: "FastAPI REST + WebSocket", detail: "Port 8002 | /api/stats, /api/devices, /api/alerts, /ws/live (1Hz)" },
+                    { label: "API", title: "Attack Injection", detail: "POST /api/inject-attack → re-runs full pipeline" },
+                    { label: "Dashboard", title: "React App", detail: "Port 3000 | Trust timeline, alerts, device deep-dive, live monitor" },
+                ],
+                output: { file: "Live visualization & analyst UI", cols: [] }
+            },
+        ];
+
+        // Render visual diagram
+        const container = document.getElementById('diagram');
+        stages.forEach((stage, idx) => {
+            const stageEl = document.createElement('div');
+            stageEl.className = 'stage';
+
+            let html = `
+                <div class="stage-header">
+                    <span class="stage-number">${stage.number}</span>
+                    <span class="stage-title">${stage.title}</span>
+                    <span class="stage-file">${stage.file}</span>
+                </div>
+                <div class="flow-row">
+            `;
+
+            stage.boxes.forEach((box, bi) => {
+                html += `
+                    <div class="flow-box ${stage.type}">
+                        <div class="box-label">${box.label}</div>
+                        <div class="box-title">${box.title}</div>
+                        <div class="box-detail">${box.detail}</div>
+                    </div>
+                `;
+                if (bi < stage.boxes.length - 1) {
+                    html += `<span class="arrow">→</span>`;
+                }
+            });
+
+            // Arrow down to output
+            html += `
+                    <span class="arrow arrow-down">↓</span>
+                </div>
+                <div class="flow-box output" style="margin-top: 4px;">
+                    <div class="box-label">Output</div>
+                    <div class="box-title">${stage.output.file}</div>
+            `;
+
+            if (stage.output.cols.length > 0) {
+                html += `<table class="output-table"><thead><tr><th>Columns</th></tr></thead><tbody>`;
+                stage.output.cols.forEach(col => {
+                    html += `<tr><td>${col}</td></tr>`;
+                });
+                html += `</tbody></table>`;
+            }
+            html += `</div>`;
+
+            stageEl.innerHTML = html;
+            container.appendChild(stageEl);
+
+            // Arrow between stages
+            if (idx < stages.length - 1) {
+                const arrow = document.createElement('div');
+                arrow.style.cssText = 'text-align:center; color:#9ca3af; margin: 8px 0; font-size: 1.5rem;';
+                arrow.innerHTML = '⬇';
+                container.appendChild(arrow);
+            }
+        });
+
+        // Mermaid diagram
+        const mermaidCode = `flowchart TD
+    subgraph Sources["📥 Data Sources"]
+        SD["Synthetic Dataset Generator\\nsimulators/generate_dataset.py"]
+        LC["Live Network Capture\\nsimulators/live_capture.py"]
+        PA["Phone Agents (Termux)\\nagent.py → POST /api/phone/telemetry"]
+        ID["IoT Devices\\nPOST /api/iot/telemetry"]
+    end
+
+    subgraph Raw["📄 Raw Telemetry"]
+        RD["full_dataset.csv\\ndevice_id, timestamp, src_ip, dst_ip, protocol, dst_port, bytes_out, packets_out, duration, direction, label"]
+    end
+
+    subgraph FE["⚙️ Feature Engineering\\ncollector/feature_extractor.py"]
+        FV["feature_vectors.csv\\ndevice_id, device_type, window, 9 behavioral features"]
+    end
+
+    subgraph BL["🎯 Baseline Learning\\nml_engine/anomaly_detector.py"]
+        BS["Baseline Stats per Device\\nmean/std per feature"]
+        DM["Device-Type Models\\n3× IsolationForest + StandardScaler\\n(CCTV, Router, AccessController)"]
+    end
+
+    subgraph AD["🔍 Anomaly Detection\\nml_engine/anomaly_detector.py"]
+        AS["anomaly_scores.csv\\nanomaly_score (0-1), is_anomaly flag"]
+    end
+
+    subgraph DD["📈 Drift Detection\\nml_engine/drift_detector.py"]
+        DR["drift_results.csv\\ndrift_magnitude, drift_class (NONE/MILD/STRONG), top_drifters, penalty"]
+    end
+
+    subgraph PE["🛡️ Policy Engine\\ntrust_engine/policy_engine.py"]
+        PR["policy_results.csv\\npolicy_status (COMPLIANT/SOFT_DRIFT/HARD_VIOLATION), violations, penalty"]
+    end
+
+    subgraph TS["⭐ Trust Scoring\\ntrust_engine/trust_scorer.py"]
+        TSC["trust_scores.csv\\ntrust_score (0-100), EMA smoothed, severity (Low/Medium/High/Critical), component deductions"]
+    end
+
+    subgraph EX["🧠 Explainability\\nexplainability/evidence_generator.py"]
+        ER["evidence_reports.csv\\nrisk_summary, evidence, feature_attribution, recommended_action"]
+    end
+
+    subgraph API["🌐 API & Dashboard\\napi/server.py + dashboard/"]
+        FAST["FastAPI :8002\\nREST + WebSocket (/ws/live 1Hz)"]
+        ATK["Attack Injection\\nPOST /api/inject-attack → re-run pipeline"]
+        DASH["React Dashboard :3000\\nTrust timeline, alerts, device detail, live monitor"]
+    end
+
+    Sources --> Raw
+    Raw --> FE
+    FE --> BL
+    BL --> AD
+    AD --> DD
+    DD --> PE
+    PE --> TS
+    TS --> EX
+    EX --> API
+    ATK -.->|Re-run pipeline| Raw
+    FAST --> DASH
+    LC -.-> FE
+    PA -.-> API
+    ID -.-> API
+
+    classDef input fill:#f0fdf4,stroke:#22c55e,stroke-width:1px;
+    classDef process fill:#eff6ff,stroke:#3b82f6,stroke-width:1px;
+    classDef output fill:#fffbeb,stroke:#f59e0b,stroke-width:1px;
+    classDef api fill:#f5f3ff,stroke:#8b5cf6,stroke-width:1px;
+
+    class SD,LC,PA,ID input;
+    class RD,FV,BS,DM,AS,DR,PR,TSC,ER process;
+    class FAST,ATK,DASH api;`;
+
+        document.getElementById('mermaid-diagram').textContent = mermaidCode;
+        mermaid.init(undefined, document.getElementById('mermaid-diagram'));
+    </script>
+</body>
+</html>
