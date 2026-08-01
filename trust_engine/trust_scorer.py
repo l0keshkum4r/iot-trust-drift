@@ -1,9 +1,20 @@
 """
 Trust Engine — Trust Scorer + EMA Smoothing + Severity Mapping
-  - Merges anomaly scores + drift results + policy results
-  - Computes trust score (0-100) per device per window
-  - Applies EMA smoothing (alpha=0.3) for stable scores
-  - Maps severity: Low / Medium / High / Critical
+===============================================================
+Updated to work with TDF model outputs.
+
+TDF already computes:
+  - anomaly_score: Hybrid Threat (HT) score in [0, 1]
+  - is_anomaly: Binary prediction (0/1)
+  - trust_score: EMA-smoothed trust score (0-100) per device
+  - severity: Severity band from trust_score
+
+This module now:
+  1. Loads TDF anomaly_scores.csv (with trust_score, severity)
+  2. Merges drift_results.csv and policy_results.csv
+  3. Applies policy deductions on top of TDF trust score
+  4. Re-computes EMA smoothing for final trust_score_smoothed
+  5. Maps to final severity bands
 """
 
 import pandas as pd
@@ -15,21 +26,26 @@ DATA_DIR = os.path.join(PROJECT_ROOT, "data")
 
 
 def map_severity(score: float) -> str:
-    """Map trust score to severity level."""
-    if score >= 81:
-        return "Low"
-    elif score >= 61:
-        return "Medium"
-    elif score >= 31:
-        return "High"
+    """Map trust score to severity level (TDF bands)."""
+    if score >= 80:
+        return "Trusted"
+    elif score >= 60:
+        return "Monitored"
+    elif score >= 35:
+        return "Elevated Risk"
     else:
         return "Critical"
 
 
 def compute_trust_scores(anomaly_df, drift_df, policy_df) -> pd.DataFrame:
-    """Compute trust scores by merging anomaly, drift, and policy data."""
+    """
+    Compute trust scores by merging TDF anomaly scores with drift and policy.
+
+    TDF already provides trust_score and severity based on HT + EMA.
+    We apply policy deductions on top, then re-smooth.
+    """
     # Step 1: Merge all three DataFrames
-    # Only keep needed columns to avoid duplicates (device_type, penalty, etc.)
+    # Only keep needed columns to avoid duplicates
     drift_cols = ["device_id", "window", "drift_magnitude", "drift_class"]
     drift_merge = drift_df[[c for c in drift_cols if c in drift_df.columns]] if len(drift_df) > 0 else drift_df
 
@@ -46,19 +62,11 @@ def compute_trust_scores(anomaly_df, drift_df, policy_df) -> pd.DataFrame:
     merged["drift_magnitude"] = merged["drift_magnitude"].fillna(0.0)
 
     # Step 3: Apply scoring formula
+    # Start from TDF trust_score (0-100), apply policy deductions
     def calculate_score(row):
-        score = 100
-
-        # Anomaly deduction (max -40)
-        anomaly_deduction = row["anomaly_score"] * 40
-
-        # Drift deduction
-        if row["drift_class"] == "DRIFT_STRONG":
-            drift_deduction = 20
-        elif row["drift_class"] == "DRIFT_MILD":
-            drift_deduction = 10
-        else:
-            drift_deduction = 0
+        # TDF trust score is already computed with AS+RDS+RF fusion + EMA
+        base_trust = row.get("trust_score", 100.0)
+        anomaly_score = row.get("anomaly_score", 0.0)
 
         # Policy deduction
         if row["policy_status"] == "HARD_VIOLATION":
@@ -68,8 +76,20 @@ def compute_trust_scores(anomaly_df, drift_df, policy_df) -> pd.DataFrame:
         else:
             policy_deduction = 0
 
+        # Drift deduction (optional - TDF already includes RDS in HT)
+        # We can add extra deduction for strong drift if not already captured
+        if row["drift_class"] == "DRIFT_STRONG":
+            drift_deduction = 10
+        elif row["drift_class"] == "DRIFT_MILD":
+            drift_deduction = 5
+        else:
+            drift_deduction = 0
+
+        # Anomaly deduction
+        anomaly_deduction = round(anomaly_score * 40.0, 1)
+
         # Calculate trust score with clamping
-        trust_score = max(0, min(100, score - anomaly_deduction - drift_deduction - policy_deduction))
+        trust_score = max(0, min(100, base_trust - drift_deduction - policy_deduction))
 
         return pd.Series({
             "trust_score": trust_score,
@@ -80,9 +100,11 @@ def compute_trust_scores(anomaly_df, drift_df, policy_df) -> pd.DataFrame:
 
     # Apply the calculation
     score_cols = merged.apply(calculate_score, axis=1)
+    # Drop original trust_score from anomaly_scores.csv since we're recalculating with deductions
+    merged = merged.drop(columns=["trust_score"])
     merged = pd.concat([merged, score_cols], axis=1)
 
-    # Step 4: Add severity column
+    # Step 4: Add severity column (using TDF bands)
     merged["severity"] = merged["trust_score"].apply(map_severity)
 
     # Step 5: Return with specified columns
@@ -129,7 +151,7 @@ def run_trust_engine() -> pd.DataFrame:
     print("  Trust Engine - Trust Score Pipeline")
     print("=" * 55)
 
-    # Load anomaly scores
+    # Load anomaly scores (from TDF model)
     anomaly_path = os.path.join(DATA_DIR, "anomaly_scores.csv")
     print(f"\n[1/5] Loading anomaly scores from {anomaly_path}...")
     anomaly_df = pd.read_csv(anomaly_path)
@@ -158,7 +180,7 @@ def run_trust_engine() -> pd.DataFrame:
         print(f"\n[3/5] policy_results.csv not found - using defaults (COMPLIANT)")
         policy_df = pd.DataFrame(columns=["device_id", "window", "policy_status", "violations"])
 
-    # Compute raw trust scores
+    # Compute raw trust scores (TDF base + policy/drift deductions)
     print("\n[4/5] Computing trust scores...")
     trust_df = compute_trust_scores(anomaly_df, drift_df, policy_df)
 
@@ -186,10 +208,10 @@ def run_trust_engine() -> pd.DataFrame:
 
     # Severity distribution
     print("\n  Severity Distribution (smoothed):")
-    for severity in ["Critical", "High", "Medium", "Low"]:
+    for severity in ["Critical", "Elevated Risk", "Monitored", "Trusted"]:
         count = len(final_df[final_df["severity_smoothed"] == severity])
         bar = "#" * count
-        print(f"    {severity:>8}: {count:>3}  {bar}")
+        print(f"    {severity:>14}: {count:>3}  {bar}")
 
     print("\n" + "=" * 55)
     return final_df

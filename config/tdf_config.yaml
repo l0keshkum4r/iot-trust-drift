@@ -1,0 +1,42 @@
+# Trust-Drift Fusion (TDF) Model Configuration
+# ============================================
+# All hyperparameters for the TDF anomaly detection model.
+# Environment variables with prefix TDF_ can override any setting (e.g., TDF_ALPHA=0.5)
+
+# Isolation Forest (unsupervised anomaly detection)
+isolation_forest:
+  n_estimators: 100
+  contamination: 0.05
+  random_state: 42
+
+# Random Forest (supervised attack classification)
+random_forest:
+  n_estimators: 200
+  max_depth: 10
+  min_samples_split: 5
+  min_samples_leaf: 2
+  class_weight: "balanced"
+  random_state: 42
+
+# Fusion weight grid search
+fusion_weights:
+  weight_step: 0.05      # Grid step size (weights sum to 1)
+  val_split: 0.2         # Validation split from training data
+  val_random_state: 42
+
+# Trust Score EMA (Exponential Moving Average)
+trust_score:
+  alpha: 0.3             # EMA smoothing factor
+  initial_trust: 100.0   # Starting trust score for new devices
+
+# Severity bands (Trust Score thresholds)
+severity_bands:
+  Trusted: [80, 100]
+  Monitored: [60, 79]
+  "Elevated Risk": [35, 59]
+  Critical: [0, 34]
+
+# Drift detector parameters
+drift_detector:
+  z_cap: 4.0             # Max Z-score per feature for RDS
+  min_std: 1e-6          # Minimum std to prevent division by zero

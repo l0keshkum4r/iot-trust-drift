@@ -5,11 +5,11 @@ Runs all 5 stages in order with a single command:
   python run_pipeline.py
 
 Stages:
-  1. Anomaly Detection   -> anomaly_scores.csv
-  2. Drift Detection     -> drift_results.csv
-  3. Policy Engine       -> policy_results.csv
-  4. Trust Scorer        -> trust_scores.csv
-  5. Evidence Generator  -> evidence_reports.csv
+  1. Anomaly Detection (TDF)   -> anomaly_scores.csv
+  2. Drift Detection           -> drift_results.csv
+  3. Policy Engine             -> policy_results.csv
+  4. Trust Scorer              -> trust_scores.csv
+  5. Evidence Generator        -> evidence_reports.csv
 """
 
 import time
@@ -29,12 +29,12 @@ def run_pipeline():
     print("  " + "=" * 56)
     print()
 
-    # ---- Stage 1: Anomaly Detection ----
-    print("[STAGE 1/5] Anomaly Detection")
+    # ---- Stage 1: Anomaly Detection (TDF) ----
+    print("[STAGE 1/5] Anomaly Detection (Trust-Drift Fusion)")
     print("-" * 60)
     from ml_engine.anomaly_detector import (
         load_features, split_baseline_and_full,
-        compute_baseline, train_per_device_type, score_all_devices,
+        train_tdf, score_all_devices,
     )
     import pandas as pd
 
@@ -42,9 +42,8 @@ def run_pipeline():
 
     features = load_features("feature_vectors.csv")
     baseline, full = split_baseline_and_full(features, baseline_hours=48)
-    baseline_stats = compute_baseline(baseline)
-    models = train_per_device_type(baseline)
-    scored = score_all_devices(models, full)
+    model = train_tdf(baseline)
+    scored = score_all_devices(model, full)
     scored.to_csv(os.path.join(DATA_DIR, "anomaly_scores.csv"), index=False)
 
     anomalies = scored[scored["is_anomaly"] == 1]
@@ -56,6 +55,18 @@ def run_pipeline():
     print("[STAGE 2/5] Drift Detection")
     print("-" * 60)
     from ml_engine.drift_detector import compute_drift, DRIFT_NONE
+
+    drift_results = []
+    for _, row in full.iterrows():
+        device_id = row["device_id"]
+        window = str(row["window"])
+        # Need baseline stats for drift detector (uses old compute_baseline)
+        # We'll compute them from baseline data
+        pass  # Will compute below
+
+    # Compute baseline stats for drift detector (per-device)
+    from ml_engine.anomaly_detector import compute_baseline
+    baseline_stats = compute_baseline(baseline)
 
     drift_results = []
     for _, row in full.iterrows():
@@ -155,8 +166,8 @@ def run_pipeline():
     print(f"  Drifts:     {len(drifting)}")
     print(f"  Violations: {len(violations)}")
 
-    flagged = evidence_df[evidence_df["severity_smoothed"].isin(["Critical", "High"])]
-    print(f"  High/Crit:  {len(flagged)}")
+    flagged = evidence_df[evidence_df["severity_smoothed"].isin(["Critical", "Elevated Risk"])]
+    print(f"  Elevated/Crit:  {len(flagged)}")
     print()
     print("  Output files in data/:")
     print("    anomaly_scores.csv")

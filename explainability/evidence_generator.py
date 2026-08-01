@@ -38,14 +38,23 @@ def build_evidence_text(row) -> dict:
     evidence_parts = []
     active_signals = []
 
+    anomaly_score = row.get("anomaly_score", 0.0)
+    anomaly_deduction = row.get("anomaly_deduction", anomaly_score * 40.0)
+    drift_class = row.get("drift_class", "DRIFT_NONE")
+    drift_magnitude = row.get("drift_magnitude", 0.0)
+    drift_deduction = row.get("drift_deduction", 0.0)
+    policy_status = row.get("policy_status", "COMPLIANT")
+    violations = row.get("violations", "none")
+    policy_deduction = row.get("policy_deduction", 0.0)
+
     # Anomaly evidence
-    if row["anomaly_score"] > 0.5:
-        evidence_parts.append(f"ML anomaly score {row['anomaly_score']:.2f} (-{row['anomaly_deduction']:.1f}pts).")
+    if anomaly_score > 0.5:
+        evidence_parts.append(f"ML anomaly score {anomaly_score:.2f} (-{anomaly_deduction:.1f}pts).")
         active_signals.append("ML anomaly")
 
     # Drift evidence
-    if row["drift_class"] == "DRIFT_STRONG":
-        evidence_parts.append(f"STRONG behavioural drift -- magnitude {row['drift_magnitude']:.1f}.")
+    if drift_class == "DRIFT_STRONG":
+        evidence_parts.append(f"STRONG behavioural drift -- magnitude {drift_magnitude:.1f}.")
 
         # Parse and add top drifters
         top_drifters = parse_top_drifters(row.get("top_drifters", "[]"))
@@ -56,15 +65,15 @@ def build_evidence_text(row) -> dict:
 
         active_signals.append("strong drift")
 
-    elif row["drift_class"] == "DRIFT_MILD":
-        evidence_parts.append(f"MILD behavioural drift detected -- magnitude {row['drift_magnitude']:.1f}.")
+    elif drift_class == "DRIFT_MILD":
+        evidence_parts.append(f"MILD behavioural drift detected -- magnitude {drift_magnitude:.1f}.")
 
     # Policy evidence
-    if row["policy_status"] == "HARD_VIOLATION":
-        evidence_parts.append(f"HARD policy violation: {row['violations']}.")
+    if policy_status == "HARD_VIOLATION":
+        evidence_parts.append(f"HARD policy violation: {violations}.")
         active_signals.append("policy violation")
-    elif row["policy_status"] == "SOFT_DRIFT":
-        evidence_parts.append(f"SOFT policy drift: {row['violations']}.")
+    elif policy_status == "SOFT_DRIFT":
+        evidence_parts.append(f"SOFT policy drift: {violations}.")
 
     # Build evidence field
     if evidence_parts:
@@ -74,19 +83,19 @@ def build_evidence_text(row) -> dict:
 
     # Build feature_attribution field
     attribution_parts = []
-    if row["anomaly_deduction"] > 0:
-        attribution_parts.append(f"anomaly_score={row['anomaly_score']:.2f} (-{row['anomaly_deduction']:.1f}pts)")
-    if row["drift_deduction"] > 0:
-        attribution_parts.append(f"drift={row['drift_class']} (-{row['drift_deduction']:.0f}pts)")
-    if row["policy_deduction"] > 0:
-        attribution_parts.append(f"policy={row['policy_status']} (-{row['policy_deduction']:.0f}pts)")
+    if anomaly_deduction > 0:
+        attribution_parts.append(f"anomaly_score={anomaly_score:.2f} (-{anomaly_deduction:.1f}pts)")
+    if drift_deduction > 0:
+        attribution_parts.append(f"drift={drift_class} (-{drift_deduction:.0f}pts)")
+    if policy_deduction > 0:
+        attribution_parts.append(f"policy={policy_status} (-{policy_deduction:.0f}pts)")
 
     feature_attribution = "; ".join(attribution_parts) if attribution_parts else "none"
 
     # Build risk_summary field
-    severity = row["severity_smoothed"]
-    device_id = row["device_id"]
-    trust = row["trust_score_smoothed"]
+    severity = row.get("severity_smoothed", row.get("severity", "Trusted"))
+    device_id = row.get("device_id", "Unknown")
+    trust = row.get("trust_score_smoothed", row.get("trust_score", 100.0))
 
     if severity == "Critical":
         signals_str = " + ".join(active_signals) if active_signals else "multiple factors"
