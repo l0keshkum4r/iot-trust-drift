@@ -660,3 +660,9 @@ class LiveEngine:
         with self._lock:
             return list(self.protocol_violations[-last_n:])
 
+    def get_latest_scored_window(self):
+        """Return the most recent scored window as a dict ready for CSV."""
+        if not self.windows:
+            return None
+        # windows already contain the scored data dict
+        return self.windows[-1]

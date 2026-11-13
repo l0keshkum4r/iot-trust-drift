@@ -13,8 +13,46 @@ from datetime import datetime, timedelta
 from pydantic import BaseModel
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+import threading, time, csv
+# Ensure the project root is on the import path *before* importing local packages
+PROJECT_ROOT_FOR_IMPORT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if PROJECT_ROOT_FOR_IMPORT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT_FOR_IMPORT)
+from simulators.live_engine import LiveEngine
 
-# Add project root to sys.path so we can import config/
+_live_engine = LiveEngine()
+
+# Reset CSV files to start with fresh data (remove old baseline)
+def _reset_data_files():
+    """Overwrite key CSVs with just their header rows to discard old data.
+    This ensures the dashboard starts from the current session.
+    """
+    import csv
+    # Define the files and their column orders (must match original headers)
+    files = {
+        os.path.join(DATA_DIR, "trust_scores.csv"): [
+            "device_id","device_type","window","trust_score","severity",
+            "anomaly_deduction","drift_deduction","policy_deduction",
+            "anomaly_score","drift_class","policy_status",
+            "trust_score_smoothed","severity_smoothed",
+        ],
+        os.path.join(DATA_DIR, "evidence_reports.csv"): [
+            "device_id","device_type","window","trust_score_smoothed","severity_smoothed",
+            "risk_summary","evidence","feature_attribution","recommended_action",
+            "anomaly_score","drift_class","policy_status",
+        ],
+        os.path.join(DATA_DIR, "feature_vectors.csv"): [
+            "device_id","window","total_bytes_out","total_packets_out","avg_bytes_per_flow",
+            "num_flows","unique_dst_ips","unique_dst_ports","unique_protocols",
+            "external_ratio","avg_duration","device_type","label",
+        ],
+    }
+    for path, cols in files.items():
+        with open(path, "w", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=cols)
+            writer.writeheader()
+        print(f"[Startup] Reset {os.path.basename(path)}")
+
 PROJECT_ROOT_FOR_IMPORT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if PROJECT_ROOT_FOR_IMPORT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT_FOR_IMPORT)
@@ -23,13 +61,94 @@ from contextlib import asynccontextmanager
 
 @asynccontextmanager
 async def lifespan(app):
-    """Startup: launch the WebSocket broadcast loop."""
     print("[Startup] FastAPI server starting...")
+    # Clear old CSV data so the dashboard starts with fresh live data
+    _reset_data_files()
     asyncio.create_task(_broadcast_live_data_loop())
-    print("[Startup] WebSocket broadcast loop started")
+    threading.Thread(target=_persist_live_data, daemon=True).start()
     print("[Startup] Server ready! Listening on http://0.0.0.0:8002")
     yield
-    print("[Shutdown] Stopping network monitor background task...")
+    _network_monitor.stop()
+    
+def _persist_live_data():
+    """Append the latest live engine window to CSV files every minute.
+    This keeps the dashboard data current and stores alerts for future runs.
+    """
+    import pandas as pd
+    while True:
+        win = _live_engine.get_latest_scored_window()
+        if win:
+            # ---- trust_scores.csv ----
+            ts_path = os.path.join(DATA_DIR, "trust_scores.csv")
+            ts_cols = [
+                "device_id",
+                "device_type",
+                "window",
+                "trust_score",
+                "severity",
+                "anomaly_deduction",
+                "drift_deduction",
+                "policy_deduction",
+                "anomaly_score",
+                "drift_class",
+                "policy_status",
+                "trust_score_smoothed",
+                "severity_smoothed",
+            ]
+            with open(ts_path, "a", newline="") as f:
+                writer = csv.DictWriter(f, fieldnames=ts_cols)
+                if f.tell() == 0:
+                    writer.writeheader()
+                writer.writerow({k: win.get(k, "") for k in ts_cols})
+
+            # ---- evidence_reports.csv ----
+            ev_path = os.path.join(DATA_DIR, "evidence_reports.csv")
+            ev_cols = [
+                "device_id",
+                "device_type",
+                "window",
+                "trust_score_smoothed",
+                "severity_smoothed",
+                "risk_summary",
+                "evidence",
+                "feature_attribution",
+                "recommended_action",
+                "anomaly_score",
+                "drift_class",
+                "policy_status",
+            ]
+            with open(ev_path, "a", newline="") as f:
+                writer = csv.DictWriter(f, fieldnames=ev_cols)
+                if f.tell() == 0:
+                    writer.writeheader()
+                ev_row = {
+                    "device_id": win.get("device_id", ""),
+                    "device_type": win.get("device_type", ""),
+                    "window": win.get("window", ""),
+                    "trust_score_smoothed": win.get("trust_score_smoothed", ""),
+                    "severity_smoothed": win.get("severity_smoothed", ""),
+                    "risk_summary": win.get("risk_summary", ""),
+                    "evidence": win.get("evidence", ""),
+                    "feature_attribution": win.get("feature_attribution", ""),
+                    "recommended_action": win.get("recommended_action", ""),
+                    "anomaly_score": win.get("anomaly_score", ""),
+                    "drift_class": win.get("drift_class", ""),
+                    "policy_status": win.get("policy_status", ""),
+                }
+                writer.writerow(ev_row)
+
+            # Simple cleanup: keep only the most recent 2000 rows
+            for path, max_rows in [(ts_path, 2000), (ev_path, 2000)]:
+                df = pd.read_csv(path)
+                if len(df) > max_rows:
+                    df.tail(max_rows).to_csv(path, index=False)
+        time.sleep(60)  # write once per minute
+
+    threading.Thread(target=_persist_live_data, daemon=True).start()
+    print("[Startup] Live CSV persistor started")
+    print("[Startup] Server ready! Listening on http://0.0.0.0:8002")
+    yield
+    # graceful shutdown
     _network_monitor.stop()
 
 app = FastAPI(title="IoT Trust & Drift API", lifespan=lifespan)
@@ -1416,6 +1535,63 @@ def network_drift_alerts(last_n: int = 50):
     drift_magnitude, and top_drifters_parsed.
     """
     return _network_monitor.get_drift_alerts(last_n=last_n)
+
+def _persist_live_data():
+    """Append live window & evidence to CSV every minute."""
+    while True:
+        win = _live_engine.get_latest_scored_window()
+        if win:
+            # ---- trust_scores.csv ----
+            ts_path = os.path.join(DATA_DIR, "trust_scores.csv")
+            # Ensure header order matches existing file
+            cols = [
+                "device_id","device_type","window","trust_score","severity",
+                "anomaly_deduction","drift_deduction","policy_deduction",
+                "anomaly_score","drift_class","policy_status",
+                "trust_score_smoothed","severity_smoothed"
+            ]
+            with open(ts_path, "a", newline="") as f:
+                writer = csv.DictWriter(f, fieldnames=cols)
+                # If file was empty, write header
+                if f.tell() == 0:
+                    writer.writeheader()
+                writer.writerow({k: win.get(k, "") for k in cols})
+            # ---- evidence_reports.csv ----
+            ev_path = os.path.join(DATA_DIR, "evidence_reports.csv")
+            ev_cols = [
+                "device_id","device_type","window","trust_score_smoothed",
+                "severity_smoothed","risk_summary","evidence",
+                "feature_attribution","recommended_action","anomaly_score",
+                "drift_class","policy_status"
+            ]
+            with open(ev_path, "a", newline="") as f:
+                writer = csv.DictWriter(f, fieldnames=ev_cols)
+                if f.tell() == 0:
+                    writer.writeheader()
+                # Build a minimal evidence entry from the window
+                evidence_row = {
+                    "device_id": win["device_id"],
+                    "device_type": win["device_type"],
+                    "window": win["window"],
+                    "trust_score_smoothed": win.get("trust_score_smoothed", ""),
+                    "severity_smoothed": win.get("severity_smoothed", ""),
+                    "risk_summary": win.get("risk_summary", ""),
+                    "evidence": win.get("evidence", ""),
+                    "feature_attribution": win.get("feature_attribution", ""),
+                    "recommended_action": win.get("recommended_action", ""),
+                    "anomaly_score": win.get("anomaly_score", ""),
+                    "drift_class": win.get("drift_class", ""),
+                    "policy_status": win.get("policy_status", ""),
+                }
+                writer.writerow(evidence_row)
+            # Keep only recent rows (e.g., last 7 days ≈ 1008 windows @10 s)
+            # Simple cleanup – read, drop old, rewrite.
+            for path, max_rows in [(ts_path, 2000), (ev_path, 2000)]:
+                df = pd.read_csv(path)
+                if len(df) > max_rows:
+                    df = df.iloc[-max_rows:]
+                    df.to_csv(path, index=False)
+        time.sleep(60)  # write once per minute
 
 
 if __name__ == "__main__":
