@@ -87,9 +87,9 @@ function Sidebar() {
   const links = [
     { to: '/', label: 'Dashboard', icon: <IconDashboard /> },
     { to: '/live', label: 'Live', icon: <IconLive /> },
-    { to: '/phones', label: 'Phone Agents', icon: <IconPhone /> },
+    // { to: '/phones', label: 'Phone Agents', icon: <IconPhone /> },
     { to: '/network-monitor', label: 'Local Monitor', icon: <IconRadar /> },
-    { to: '/devices', label: 'Devices', icon: <IconDevices /> },
+    // { to: '/devices', label: 'Devices', icon: <IconDevices /> },
     { to: '/analytics', label: 'Analytics', icon: <IconAnalytics /> },
     { to: '/network', label: 'Network', icon: <IconNetwork /> },
     { to: '/alerts', label: 'Alerts', icon: <IconAlerts /> },
@@ -176,9 +176,9 @@ function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/" element={<Dashboard />} />
-                <Route path="/live" element={<Live />} />
-                <Route path="/phones" element={<PhoneAgents />} />
-                <Route path="/network-monitor" element={<LocalNetworkMonitor />} />
+          <Route path="/live" element={<Live />} />
+          <Route path="/phones" element={<PhoneAgents />} />
+          <Route path="/network-monitor" element={<LocalNetworkMonitor />} />
           <Route path="/devices" element={<Devices />} />
           <Route path="/analytics" element={<Analytics />} />
           <Route path="/network" element={<Network />} />

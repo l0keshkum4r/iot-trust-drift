@@ -95,8 +95,6 @@ CCTV_01,2024-01-16 20:00:00,0.16,DRIFT_NONE,"[('total_packets_out', 0.56), ('avg
 CCTV_01,2024-01-16 21:00:00,0.16,DRIFT_NONE,"[('total_packets_out', 0.55), ('avg_bytes_per_flow', 0.46), ('total_bytes_out', 0.46)]",0
 CCTV_01,2024-01-16 22:00:00,0.21,DRIFT_NONE,"[('avg_bytes_per_flow', 0.64), ('total_bytes_out', 0.64), ('total_packets_out', 0.58)]",0
 CCTV_01,2024-01-16 23:00:00,0.17,DRIFT_NONE,"[('avg_bytes_per_flow', 0.54), ('total_bytes_out', 0.54), ('total_packets_out', 0.45)]",0
-CCTV_01,2024-01-17 00:00:00,73.58,DRIFT_STRONG,"[('num_flows', 100.0), ('unique_dst_ips', 100.0), ('unique_dst_ports', 100.0)]",20
-CCTV_01,2024-01-17 01:00:00,73.46,DRIFT_STRONG,"[('num_flows', 100.0), ('unique_dst_ips', 100.0), ('unique_dst_ports', 100.0)]",20
 Router_01,2024-01-15 00:00:00,0.39,DRIFT_NONE,"[('total_packets_out', 1.51), ('avg_bytes_per_flow', 0.98), ('total_bytes_out', 0.98)]",0
 Router_01,2024-01-15 01:00:00,0.22,DRIFT_NONE,"[('total_bytes_out', 0.81), ('avg_bytes_per_flow', 0.81), ('total_packets_out', 0.36)]",0
 Router_01,2024-01-15 02:00:00,0.4,DRIFT_NONE,"[('total_bytes_out', 1.64), ('avg_bytes_per_flow', 1.64), ('total_packets_out', 0.36)]",0
