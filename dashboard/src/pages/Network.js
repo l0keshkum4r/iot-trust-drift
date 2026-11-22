@@ -33,13 +33,13 @@ function Network() {
     async function fetchData() {
       try {
         const [tRes, pRes, portRes, dstRes] = await Promise.all([
-          axios.get(`${API}/network-traffic`),
+          axios.get(`${API}/live/traffic`),
           axios.get(`${API}/protocol-distribution`),
           axios.get(`${API}/port-distribution`),
           axios.get(`${API}/top-destinations`),
         ]);
 
-        // Pivot traffic by window
+        // Pivot live traffic by window (from LiveEngine simulated devices)
         const byW = {};
         tRes.data.forEach((r) => {
           const t = formatTime(r.window);
@@ -57,6 +57,8 @@ function Network() {
       }
     }
     fetchData();
+    const interval = setInterval(fetchData, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   if (loading) {

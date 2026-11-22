@@ -1593,6 +1593,143 @@ def _persist_live_data():
                     df.to_csv(path, index=False)
         time.sleep(60)  # write once per minute
 
+# ----- Live endpoints for real-time simulation charts & alerts -----
+@app.get("/api/live-anomaly")
+def get_live_anomaly():
+    """
+    Return recent anomaly scores per device from LiveEngine's in-memory windows.
+    Provides up-to-date data for the Analytics anomaly chart.
+    """
+    windows = _live_engine.get_latest_n_windows(200)
+    return [
+        {
+            "device_id": w["device_id"],
+            "window": w["window"],
+            "anomaly_score": w.get("anomaly_score", 0),
+        }
+        for w in windows
+    ]
+
+
+@app.get("/api/live-drift")
+def get_live_drift():
+    """
+    Return recent drift magnitude per device from LiveEngine's in-memory windows.
+    Provides up-to-date data for the Analytics drift chart.
+    """
+    windows = _live_engine.get_latest_n_windows(200)
+    return [
+        {
+            "device_id": w["device_id"],
+            "window": w["window"],
+            "drift_magnitude": w.get("drift_magnitude", 0),
+        }
+        for w in windows
+    ]
+
+
+@app.get("/api/live/traffic")
+def live_traffic():
+    """
+    Return traffic volume per device per window from the LiveEngine's scored windows.
+    Used by the Network page to render live traffic graphs.
+    """
+    windows = _live_engine.get_latest_n_windows(200)
+    return [
+        {
+            "device_id": w["device_id"],
+            "window": w["window"],
+            "total_bytes_out": w.get("total_bytes_out", 0),
+            "total_packets_out": w.get("total_packets_out", 0),
+            "num_flows": w.get("num_flows", 0),
+            "unique_dst_ips": w.get("unique_dst_ips", 0),
+            "unique_dst_ports": w.get("unique_dst_ports", 0),
+            "external_ratio": w.get("external_ratio", 0),
+        }
+        for w in windows
+    ]
+
+
+@app.get("/api/live/alerts")
+def live_alerts(last_n: int = 100):
+    """
+    Aggregate alerts from all three sources:
+      - Live network capture alerts (real traffic)
+      - Simulation anomaly feed (IoT simulation)
+      - Live drift/policy alerts from NetworkIoTMonitor (live device monitoring)
+    Returns a unified, deduplicated-by-timestamp list sorted newest first.
+    """
+    alerts = []
+
+    # 1) Real network capture alerts
+    try:
+        capture_alerts = _live_capture.get_alerts(last_n=last_n)
+        for a in capture_alerts:
+            alerts.append({
+                "device_id": "real_traffic",
+                "device_type": "Network",
+                "window": a.get("timestamp"),
+                "severity": a.get("severity", "Medium"),
+                "trust_score": a.get("trust_score"),
+                "risk_summary": a.get("message", "Anomalous real traffic detected"),
+                "evidence": f"Feature: {a.get('top_feature', 'unknown')} (Z={a.get('top_zscore', 0)})",
+                "feature_attribution": str(a.get("zscores", {})),
+                "recommended_action": "Investigate network traffic",
+                "source": "live_capture",
+                "anomaly_score": a.get("anomaly_score"),
+                "drift_class": a.get("drift_class"),
+                "policy_status": "COMPLIANT",
+            })
+    except Exception as e:
+        print(f"[live-alerts] capture alerts error: {e}")
+
+    # 2) Simulation anomaly feed
+    try:
+        sim_anomalies = _live_engine.get_anomaly_feed(last_n=last_n)
+        for a in sim_anomalies:
+            alerts.append({
+                "device_id": a.get("device_id"),
+                "device_type": a.get("device_type", "Simulation"),
+                "window": a.get("window"),
+                "severity": a.get("severity", "Medium"),
+                "trust_score": a.get("trust_score"),
+                "risk_summary": f"Anomalous window detected on {a.get('device_id')}",
+                "evidence": f"Anomaly score: {a.get('anomaly_score')}, trust: {a.get('trust_score')}",
+                "feature_attribution": "Simulation anomaly feed",
+                "recommended_action": "Review simulation telemetry",
+                "source": "simulation",
+                "anomaly_score": a.get("anomaly_score"),
+                "drift_class": a.get("drift_class"),
+                "policy_status": "COMPLIANT",
+            })
+    except Exception as e:
+        print(f"[live-alerts] sim anomalies error: {e}")
+
+    # 3) Live device monitoring drift/policy alerts
+    try:
+        monitor_alerts = _network_monitor.get_drift_alerts(last_n=last_n)
+        for a in monitor_alerts:
+            alerts.append({
+                "device_id": a.get("device_id", "unknown"),
+                "device_type": a.get("device_type", "Monitored"),
+                "window": a.get("window"),
+                "severity": a.get("severity", "Medium"),
+                "trust_score": a.get("trust_score"),
+                "risk_summary": a.get("risk_summary", "Drift/policy alert from live device monitoring"),
+                "evidence": a.get("top_drifters_parsed", ""),
+                "feature_attribution": str(a.get("top_drifters", [])),
+                "recommended_action": "Inspect monitored device",
+                "source": "network_monitor",
+                "anomaly_score": None,
+                "drift_class": a.get("drift_class"),
+                "policy_status": a.get("policy_status"),
+            })
+    except Exception as e:
+        print(f"[live-alerts] monitor alerts error: {e}")
+
+    # Sort newest first
+    alerts.sort(key=lambda x: x.get("window") or "", reverse=True)
+    return alerts[:last_n]
 
 if __name__ == "__main__":
     import uvicorn

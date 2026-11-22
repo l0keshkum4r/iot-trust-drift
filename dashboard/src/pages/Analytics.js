@@ -21,20 +21,20 @@ function Analytics() {
   const [anomaly, setAnomaly] = useState([]);
   const [drift, setDrift] = useState([]);
   const [severity, setSeverity] = useState([]);
-  
+
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function fetchData() {
       try {
         const [aRes, dRes, sRes, tRes] = await Promise.all([
-          axios.get(`${API}/anomaly-timeline`),
-          axios.get(`${API}/drift-timeline`),
+          axios.get(`${API}/live-anomaly`),
+          axios.get(`${API}/live-drift`),
           axios.get(`${API}/severity-distribution`),
           axios.get(`${API}/trust-timeline`),
         ]);
 
-        // Pivot anomaly data
+        // Pivot anomaly data by window
         const anomByW = {};
         aRes.data.forEach((r) => {
           const t = formatTime(r.window);
@@ -43,7 +43,7 @@ function Analytics() {
         });
         setAnomaly(Object.values(anomByW));
 
-        // Pivot drift data
+        // Pivot drift data by window
         const driftByW = {};
         dRes.data.forEach((r) => {
           const t = formatTime(r.window);
@@ -54,13 +54,6 @@ function Analytics() {
 
         setSeverity(sRes.data);
 
-        // Trust deductions — aggregate deductions per window across devices
-        const dedByW = {};
-        tRes.data.forEach((r) => {
-          const t = formatTime(r.window);
-          const key = `${r.device_id}_${t}`;
-          if (!dedByW[key]) dedByW[key] = { window: t, device_id: r.device_id };
-        });
         // Trust timeline data available for future use
         void tRes.data;
 
@@ -71,6 +64,8 @@ function Analytics() {
       }
     }
     fetchData();
+    const interval = setInterval(fetchData, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   if (loading) {
@@ -199,7 +194,7 @@ function AttackChart() {
   useEffect(() => {
     axios.get(`${API}/attack-distribution`).then(res => {
       setData(res.data.map(d => ({ ...d, name: d.attack_type.replace('attack_', '').replace('_', ' ').toUpperCase() })));
-    }).catch(() => {});
+    }).catch(() => { });
   }, []);
 
   if (!data.length) return <div className="table-empty">No attack data.</div>;

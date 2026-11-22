@@ -666,3 +666,8 @@ class LiveEngine:
             return None
         # windows already contain the scored data dict
         return self.windows[-1]
+    
+    def get_latest_n_windows(self, n: int = 200):
+        """Return the most‑recent `n` scored windows (thread‑safe)."""
+        with self._lock:
+            return self.windows[-n:] if self.windows else []

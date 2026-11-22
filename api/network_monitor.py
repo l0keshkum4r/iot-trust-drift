@@ -553,9 +553,19 @@ class NetworkIoTMonitor:
                 # Active checks
                 ping_res = self.ping_ip(ip, count=3, timeout=0.6)
                 open_ports = []
+                # If ping succeeds, scan ports normally
                 if ping_res["alive"]:
                     open_ports = self.scan_ports(ip)
-
+                else:
+                    # Attempt to infer liveness from LiveEngine recent window
+                    if self.live_engine:
+                        recent = self.live_engine.get_latest_scored_window()
+                        if recent and recent.get("device_id") == ip:
+                            # Treat as alive based on recent live data
+                            ping_res["alive"] = True
+                            ping_res["rtt"] = None
+                            ping_res["loss"] = 0.0
+                # Build features using whatever alive status we have
                 features, raw_flows = self.build_virtual_features_and_flows(
                     dev, ping_res["alive"], ping_res["rtt"], ping_res["loss"], open_ports
                 )

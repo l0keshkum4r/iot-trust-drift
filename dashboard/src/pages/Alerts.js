@@ -140,15 +140,40 @@ function Alerts() {
   const [selectedAlert, setSelectedAlert] = useState(null);
   const navigate = useNavigate();
 
+  const SOURCE_LABELS = {
+    live_capture: 'Live Network',
+    simulation: 'Simulation',
+    network_monitor: 'Live Device Monitor',
+  };
+
   useEffect(() => {
-    Promise.all([
-      axios.get(`${API}/all-evidence`),
-      axios.get(`${API}/injection-status`),
-    ]).then(([evRes, injRes]) => {
-      setAllData(evRes.data);
-      setActiveInjections(injRes.data.active_injections || {});
-      setLoading(false);
-    }).catch(() => setLoading(false));
+    async function load() {
+      try {
+        const [evRes, injRes, liveRes] = await Promise.all([
+          axios.get(`${API}/all-evidence`).catch(() => ({ data: [] })),
+          axios.get(`${API}/injection-status`),
+          axios.get(`${API}/live/alerts?last_n=200`).catch(() => ({ data: [] })),
+        ]);
+
+        const evidence = evRes.data || [];
+        const live = (liveRes.data || []).map(a => ({
+          ...a,
+          source_label: SOURCE_LABELS[a.source] || a.source,
+          source: a.source,
+        }));
+
+        // Merge: pipeline evidence first, then live alerts appended after
+        setAllData([...evidence, ...live]);
+        setActiveInjections(injRes.data.active_injections || {});
+        setLoading(false);
+      } catch (err) {
+        console.error(err);
+        setLoading(false);
+      }
+    }
+    load();
+    const interval = setInterval(load, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   if (loading) {
